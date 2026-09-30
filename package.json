@@ -27,7 +27,7 @@
     "prebuild:clean": "EXPO_NO_TELEMETRY=1 npx expo prebuild --clean"
   },
   "dependencies": {
-    "@blinkdotnew/mobile-ui": "2.0.0",
+    "@blinkdotnew/mobile-ui": "2.0.1",
     "@blinkdotnew/sdk": "^2.5.0",
     "@expo/vector-icons": "^15.0.3",
     "@legendapp/list": "^2.0.16",
@@ -38,6 +38,7 @@
     "expo-blur": "~15.0.7",
     "expo-clipboard": "^56.0.3",
     "expo-constants": "~18.0.10",
+    "expo-file-system": "~19.0.24",
     "expo-font": "~14.0.9",
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.10",

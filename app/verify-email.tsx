@@ -7,7 +7,7 @@ import {
   Spinner,
   SafeArea,
 } from '@blinkdotnew/mobile-ui';
-import { CheckCircle2, AlertCircle, Mail } from '@tamagui/lucide-icons';
+import { CheckCircle2, AlertCircle, Mail } from '@blinkdotnew/mobile-ui';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { blink } from '@/lib/blink';
 
@@ -47,8 +47,8 @@ export default function VerifyEmailScreen() {
   }, [params.token, params.t]);
 
   return (
-    <SafeArea flex={1} backgroundColor="$background">
-      <YStack flex={1} alignItems="center" justifyContent="center" paddingHorizontal="$5" gap="$4">
+    <SafeArea>
+      <YStack flex={1} backgroundColor="$background" alignItems="center" justifyContent="center" paddingHorizontal="$5" gap="$4">
         {status === 'verifying' && (
           <Animated.View entering={FadeIn.duration(300)} style={{ alignItems: 'center', gap: 20 }}>
             <YStack

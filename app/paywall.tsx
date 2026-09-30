@@ -16,7 +16,7 @@ import {
   History,
   BarChart3,
   Lock,
-} from '@tamagui/lucide-icons';
+} from '@blinkdotnew/mobile-ui';
 import { blink } from '@/lib/blink';
 import {
   usePackages,
@@ -260,7 +260,6 @@ export default function ProPaywallScreen() {
       onSelectPlan={setSelectedPlan}
       onContinue={handleContinue}
       onRestore={handleRestore}
-      continueLabel={purchasing ? 'Processing…' : restoring ? 'Restoring…' : undefined}
       features={[
         {
           title: 'Unlimited Scans',
@@ -309,7 +308,7 @@ export default function ProPaywallScreen() {
           </SizableText>
         </YStack>
       }
-      bottomSlot={
+      footerSlot={
         <YStack paddingTop="$3" gap="$2">
           <SizableText size="$1" color="$color9" textAlign="center" lineHeight={16}>
             Subscriptions auto-renew through the App Store / Play Store until cancelled.

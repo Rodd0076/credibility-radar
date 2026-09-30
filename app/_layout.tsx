@@ -11,7 +11,7 @@ import {
   BlinkToastProvider,
   getBlinkThemePalettes,
 } from '@blinkdotnew/mobile-ui';
-import { createThemes } from '@tamagui/theme-builder';
+import { createThemes } from '@tamagui/config/v5';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { initializePayments, identifyUser, resetUser } from '@/lib/payments';
 import { blink } from '@/lib/blink';

@@ -1,5 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { blink } from './blink';
-import { getTier, type AnalysisResult } from './types';
+import type { AnalysesRow } from './db-types';
+import { getTier, type Analysis, type AnalysisResult } from './types';
 
 const SYSTEM_PROMPT = `You are an expert linguistic forensics analyst specializing in detecting genuine expertise versus surface-level knowledge in written and spoken communication.
 
@@ -22,6 +24,7 @@ Be HARSH but fair. Pure buzzword speak should score below 30. Real technical dep
 
 export async function analyzeText(text: string): Promise<AnalysisResult> {
   const { object } = await blink.ai.generateObject({
+    prompt: `${SYSTEM_PROMPT}\n\nAnalyze this communication for true knowledge depth. Return all four scores as numbers from 0 to 100.\n\n"""${text}"""`,
     schema: {
       type: 'object',
       properties: {
@@ -35,54 +38,119 @@ export async function analyzeText(text: string): Promise<AnalysisResult> {
       },
       required: ['technical_score', 'structural_score', 'camouflage_score', 'coherence_score', 'summary', 'fluff_phrases', 'strengths'],
     },
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `Analyze this communication for true knowledge depth:\n\n"""${text}"""` },
-    ],
-  } as any);
+  });
 
-  const r = object as any;
+  const r = object as {
+    technical_score: unknown;
+    structural_score: unknown;
+    camouflage_score: unknown;
+    coherence_score: unknown;
+    summary: unknown;
+    fluff_phrases: unknown;
+    strengths: unknown;
+  };
+  const score = (value: unknown) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.round(Math.max(0, Math.min(100, numeric))) : 0;
+  };
+  const technicalScore = score(r.technical_score);
+  const structuralScore = score(r.structural_score);
+  const camouflageScore = score(r.camouflage_score);
+  const coherenceScore = score(r.coherence_score);
   const overall = Math.round(
-    r.technical_score * 0.35 +
-    r.structural_score * 0.25 +
-    r.camouflage_score * 0.20 +
-    r.coherence_score * 0.20
+    technicalScore * 0.35 +
+    structuralScore * 0.25 +
+    camouflageScore * 0.20 +
+    coherenceScore * 0.20
   );
+  const asStringList = (value: unknown, limit: number) =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, limit) : [];
 
   return {
     overall_score: overall,
-    technical_score: r.technical_score,
-    structural_score: r.structural_score,
-    camouflage_score: r.camouflage_score,
-    coherence_score: r.coherence_score,
+    technical_score: technicalScore,
+    structural_score: structuralScore,
+    camouflage_score: camouflageScore,
+    coherence_score: coherenceScore,
     tier: getTier(overall),
-    summary: r.summary,
-    fluff_phrases: r.fluff_phrases || [],
-    strengths: r.strengths || [],
+    summary: typeof r.summary === 'string' ? r.summary : 'The analysis could not produce a written summary.',
+    fluff_phrases: asStringList(r.fluff_phrases, 5),
+    strengths: asStringList(r.strengths, 3),
   };
 }
 
-export async function saveAnalysis(text: string, result: AnalysisResult, inputType: 'text' | 'voice' = 'text') {
-  const id = `a_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const LOCAL_ANALYSES_KEY = 'cr_local_analyses';
+export const MAX_ANALYSIS_LENGTH = 12000;
+
+export async function getLocalAnalyses(): Promise<Analysis[]> {
   try {
-    const user = await blink.auth.me().catch(() => null);
-    await (blink as any).db.analyses.create({
+    const stored = await AsyncStorage.getItem(LOCAL_ANALYSES_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed as Analysis[] : [];
+  } catch {
+    return [];
+  }
+}
+
+async function storeLocalAnalysis(analysis: Analysis) {
+  const existing = await getLocalAnalyses();
+  const next = [analysis, ...existing.filter((item) => item.id !== analysis.id)].slice(0, 50);
+  await AsyncStorage.setItem(LOCAL_ANALYSES_KEY, JSON.stringify(next));
+}
+
+export async function saveAnalysis(
+  text: string,
+  result: AnalysisResult,
+  inputType: 'text' | 'voice' = 'text',
+  userId?: string,
+): Promise<string | null> {
+  const id = `a_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const inputText = text.slice(0, MAX_ANALYSIS_LENGTH);
+  const analysis: Analysis = {
+    ...result,
+    id,
+    user_id: userId,
+    input_text: inputText,
+    input_type: inputType,
+    created_at: new Date().toISOString(),
+  };
+
+  if (!userId) {
+    try {
+      await storeLocalAnalysis(analysis);
+      return id;
+    } catch (error) {
+      console.warn('Local analysis save failed:', error);
+      return null;
+    }
+  }
+
+  try {
+    await blink.db.table<AnalysesRow>('analyses').create({
       id,
-      user_id: user?.id || 'anon',
-      input_text: text.slice(0, 4000),
-      input_type: inputType,
-      overall_score: result.overall_score,
-      technical_score: result.technical_score,
-      structural_score: result.structural_score,
-      camouflage_score: result.camouflage_score,
-      coherence_score: result.coherence_score,
+      userId,
+      inputText,
+      inputType,
+      overallScore: result.overall_score,
+      technicalScore: result.technical_score,
+      structuralScore: result.structural_score,
+      camouflageScore: result.camouflage_score,
+      coherenceScore: result.coherence_score,
       tier: result.tier,
       summary: result.summary,
-      fluff_phrases: JSON.stringify(result.fluff_phrases),
+      fluffPhrases: JSON.stringify(result.fluff_phrases),
       strengths: JSON.stringify(result.strengths),
+      createdAt: analysis.created_at,
     });
-  } catch (e) {
-    console.warn('Save failed:', e);
+    return id;
+  } catch (error) {
+    console.warn('Cloud analysis save failed; keeping a private device copy:', error);
+    try {
+      await storeLocalAnalysis(analysis);
+      return id;
+    } catch (localError) {
+      console.warn('Local analysis fallback failed:', localError);
+      return null;
+    }
   }
-  return id;
 }
